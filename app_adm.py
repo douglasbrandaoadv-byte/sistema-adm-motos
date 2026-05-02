@@ -1,10 +1,9 @@
 import streamlit as st
+import datetime
 
-# 1. Configuração da página e Identidade Visual
-# DEVE ser a primeira linha do código
-st.set_page_config(page_title="Sistema de Gestão e Locação", layout="wide")
+# 1. Configuração Inicial e Identidade Visual (Azul Marinho e Branco)
+st.set_page_config(page_title="Sistema de Locação de Motos", layout="wide")
 
-# Aplicando a identidade visual (Azul Marinho e Branco) na barra lateral
 st.markdown("""
     <style>
     [data-testid="stSidebar"] {
@@ -19,139 +18,191 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. O Menu Único e Fixo na Barra Lateral
+# 2. Inicialização da "Memória" do Sistema (Para conectar Motos e Clientes)
+if 'motos_cadastradas' not in st.session_state:
+    st.session_state.motos_cadastradas = ["CG 160 Titan - ABC-1234"] # Moto de exemplo
+if 'clientes_cadastrados' not in st.session_state:
+    st.session_state.clientes_cadastrados = ["Douglas Brandão"] # Cliente de exemplo
+
+# 3. Menu Lateral Fixo
 st.sidebar.title("Menu Principal")
-
 opcoes_menu = [
-    "Dashboard",
-    "Gerar Intinerário", 
-    "Despesa em Lote", 
-    "Motos: Inadimplência e Bloqueio",
-    "Motos: Validação de Vídeos",
-    "Motos: Cadastros"
+    "Cadastro de Cliente", 
+    "Cadastro de Moto", 
+    "Relatório de Clientes", 
+    "Manutenção de Motos"
 ]
-
-# O comando st.radio cria a lista fixa, eliminando o menu suspenso
 escolha = st.sidebar.radio("Selecione o módulo:", opcoes_menu)
 
-st.divider() # Linha visual para separar o topo
+st.divider()
 
-# 3. Roteamento das Telas (A lógica de cada menu)
+# --- MÓDULO 1: CADASTRO DE CLIENTE ---
+if escolha == "Cadastro de Cliente":
+    st.title("Cadastro de Novo Cliente")
+    
+    with st.form("form_novo_cliente"):
+        st.subheader("Dados Pessoais")
+        col1, col2, col3, col4 = st.columns(4)
+        nome = col1.text_input("Nome Completo")
+        cpf = col2.text_input("CPF")
+        rg = col3.text_input("RG")
+        data_nasc = col4.date_input("Data de Nascimento")
+        
+        st.subheader("Habilitação")
+        col5, col6, col7 = st.columns(3)
+        cnh = col5.text_input("Número da CNH")
+        categoria_cnh = col6.selectbox("Categoria", ["A", "AB", "AC", "AD", "AE"])
+        validade_cnh = col7.date_input("Validade da CNH")
+        
+        st.subheader("Contato")
+        col8, col9, col10 = st.columns(3)
+        telefone = col8.text_input("Telefone/WhatsApp")
+        email = col9.text_input("E-mail")
+        emergencia = col10.text_input("Contato de Emergência (Nome e Tel)")
+        
+        st.subheader("Endereço")
+        col11, col12, col13, col14, col15 = st.columns([2, 1, 1, 1, 2])
+        rua = col11.text_input("Rua")
+        numero = col12.text_input("Número")
+        bairro = col13.text_input("Bairro")
+        cep = col14.text_input("CEP")
+        cidade = col15.text_input("Cidade")
+        
+        st.subheader("Anexos")
+        foto_cnh = st.file_uploader("Foto da CNH", type=['png', 'jpg', 'jpeg', 'pdf'])
+        foto_residencia = st.file_uploader("Comprovante de Residência", type=['png', 'jpg', 'jpeg', 'pdf'])
+        
+        st.subheader("Detalhes do Contrato")
+        col16, col17 = st.columns(2)
+        modalidade = col16.selectbox("Modalidade do Contrato", ["Com Repasse do Bem (Transferência)", "Sem Repasse (Devolução)"])
+        
+        # Aqui o sistema puxa automaticamente as motos cadastradas
+        moto_escolhida = col17.selectbox("Modelo da Moto", st.session_state.motos_cadastradas)
+        
+        col18, col19, col20 = st.columns(3)
+        valor_semanal = col18.number_input("Valor Financeiro (Semanal em R$)", min_value=0.0, step=10.0)
+        prazo_meses = col19.number_input("Prazo do Contrato (Meses)", min_value=1, step=1)
+        caucao = col20.number_input("Caução/Franquia de Retirada (R$)", min_value=0.0, step=50.0)
+        
+        if st.form_submit_button("Salvar Cadastro de Cliente"):
+            if nome not in st.session_state.clientes_cadastrados:
+                st.session_state.clientes_cadastrados.append(nome)
+            st.success(f"Cliente {nome} cadastrado e vinculado à moto {moto_escolhida} com sucesso!")
 
-if escolha == "Dashboard":
-    st.title("Dashboard Principal")
-    st.write("Aqui ficarão os gráficos e o resumo financeiro geral do seu negócio.")
-    # Cole aqui a lógica original do seu Dashboard, se houver
+# --- MÓDULO 2: CADASTRO DE MOTO ---
+elif escolha == "Cadastro de Moto":
+    st.title("Cadastro de Nova Motocicleta")
+    
+    with st.form("form_nova_moto"):
+        st.subheader("Identificação")
+        col1, col2, col3 = st.columns(3)
+        placa = col1.text_input("Placa (ex: ABC-1234)")
+        chassi = col2.text_input("Chassi")
+        renavam = col3.text_input("Renavam")
+        
+        st.subheader("Características")
+        col4, col5, col6, col7 = st.columns(4)
+        marca = col4.text_input("Marca")
+        modelo = col5.text_input("Modelo")
+        ano = col6.text_input("Ano de Fabricação")
+        cor = col7.text_input("Cor")
+        
+        st.subheader("Situação e Controle")
+        col8, col9 = st.columns(2)
+        km_inicial = col8.number_input("Quilometragem Inicial", min_value=0, step=1)
+        status = col9.text_input("Status Atual", value="Disponível", disabled=True) 
+        # O campo disabled=True torna o status automático e não editável aqui
+        
+        if st.form_submit_button("Cadastrar Moto"):
+            nova_moto_str = f"{modelo} - {placa}"
+            if nova_moto_str not in st.session_state.motos_cadastradas:
+                st.session_state.motos_cadastradas.append(nova_moto_str)
+            st.success(f"Moto {nova_moto_str} cadastrada com sucesso e já disponível para locação!")
 
-elif escolha == "Gerar Intinerário":
-    st.title("Gerar Intinerário")
-    st.write("Módulo de organização de rotas e intinerários da equipe.")
-    # Cole aqui a lógica original do seu Intinerário
-
-elif escolha == "Despesa em Lote":
-    st.title("Lançamento de Despesa em Lote")
+# --- MÓDULO 3: RELATÓRIO DE CLIENTES ---
+elif escolha == "Relatório de Clientes":
+    st.title("Relatório Geral de Clientes")
+    st.write("Selecione um cliente na lista abaixo para visualizar e editar suas informações.")
     
-    # Campo com digitação manual e autocompletar para não engessar a operação
-    fornecedores_salvos = ["Fornecedor A", "Distribuidora Central", "Serviços Gerais Ltda"]
+    # Campo de busca/seleção de clientes
+    cliente_selecionado = st.selectbox("Buscar Cliente", [""] + st.session_state.clientes_cadastrados)
     
-    col1, col2 = st.columns(2)
-    busca_forn = col1.selectbox("Buscar fornecedor (Autocompletar)", [""] + fornecedores_salvos)
-    novo_forn = col2.text_input("Ou digite manualmente um novo fornecedor")
-    
-    fornecedor_final = novo_forn if novo_forn else busca_forn
-    
-    valor = st.number_input("Valor Total (R$)", min_value=0.0)
-    
-    if st.button("Lançar Despesa"):
-        st.success(f"Despesa de R$ {valor} para o fornecedor '{fornecedor_final}' registrada com sucesso!")
-        # Cole aqui o restante da sua lógica original de Despesa em Lote
-
-elif escolha == "Motos: Inadimplência e Bloqueio":
-    st.title("Controle de Pagamentos Semanais")
-    
-    # Simulação de painel de alerta
-    st.error("Atenção: Locatário João Silva (Placa ABC-1234) está com pagamento atrasado.")
-    
-    if st.button("Acionar Bloqueio da Moto (ABC-1234)"):
-        st.success("Sinal de bloqueio de ignição enviado ao rastreador com sucesso!")
-
-elif escolha == "Motos: Validação de Vídeos":
-    st.title("Auditoria de Manutenção (Óleo e Filtro)")
-    
-    st.write("**Vídeo enviado por:** João Silva (Placa ABC-1234)")
-    st.write("**Data do envio:** Hoje")
-    
-    # Exemplo visual de onde o vídeo do locatário aparecerá
-    st.video("https://www.w3schools.com/html/mov_bbb.mp4") 
-    
-    col1, col2 = st.columns(2)
-    if col1.button("✅ Aprovar Manutenção"):
-        st.success("Manutenção aprovada. O relógio de quilometragem da peça foi zerado.")
-    
-    if col2.button("❌ Reprovar (Exigir novo vídeo)"):
-        st.error("Notificação enviada ao locatário. Ele deverá enviar um novo vídeo demonstrando a troca.")
-
-elif escolha == "Motos: Cadastros":
-    st.title("Gestão de Frota e Clientes")
-    
-    # As abas organizam a tela sem precisar criar novos menus laterais
-    aba_clientes, aba_motos, aba_fornecedores, aba_regras = st.tabs([
-        "👤 Locatários", "🏍️ Frota", "🛠️ Oficinas", "⚙️ Regras"
-    ])
-    
-    with aba_clientes:
-        st.subheader("Cadastro de Locatário")
-        with st.form("form_cliente"):
+    if cliente_selecionado:
+        st.subheader(f"Ficha Completa: {cliente_selecionado}")
+        
+        # Criação das duas abas exigidas
+        aba_info_cliente, aba_info_moto = st.tabs(["👤 Informações do Cliente", "🏍️ Informações da Moto e Manutenções"])
+        
+        with aba_info_cliente:
+            st.info("Para editar, altere os valores nos campos abaixo e clique em Salvar Alterações.")
+            col1, col2, col3 = st.columns(3)
+            # Para simular edição, os campos já vêm preenchidos com o valor atual (value=...)
+            edit_nome = col1.text_input("Nome Completo", value=cliente_selecionado, key="edit_nome")
+            edit_cpf = col2.text_input("CPF", value="000.000.000-00", key="edit_cpf")
+            edit_telefone = col3.text_input("Telefone", value="(00) 00000-0000", key="edit_tel")
+            
+            if st.button("Salvar Alterações do Cliente"):
+                st.success("Dados do cliente atualizados com sucesso!")
+                
+        with aba_info_moto:
+            st.info("Para editar os dados do contrato/moto, altere os valores e salve.")
             col1, col2 = st.columns(2)
-            nome = col1.text_input("Nome Completo")
-            cpf = col2.text_input("CPF")
+            edit_moto_vinculada = col1.selectbox("Moto Locada Atual", st.session_state.motos_cadastradas, key="edit_moto")
+            edit_valor = col2.number_input("Valor Semanal (R$)", value=250.0, key="edit_valor")
             
-            col3, col4 = st.columns(2)
-            cnh = col3.text_input("Número da CNH")
-            validade_cnh = col4.date_input("Validade da CNH")
+            if st.button("Salvar Alterações da Moto"):
+                st.success("Dados do contrato atualizados com sucesso!")
             
-            modalidade = st.selectbox("Modalidade", ["Com Repasse (Transferência)", "Sem Repasse (Devolução)"])
-            
-            if st.form_submit_button("Salvar Locatário"):
-                st.success("Locatário cadastrado e pronto para assinatura do contrato.")
+            st.divider()
+            st.subheader("Histórico de Manutenções desta Moto")
+            # Exibição estática para simular o histórico
+            st.write("✅ **10/04/2026:** Troca de Óleo e Filtro (1.000 km)")
+            st.write("✅ **25/03/2026:** Troca de Pastilha de Freio (5.000 km)")
 
-    with aba_motos:
-        st.subheader("Cadastro de Motocicleta")
-        with st.form("form_moto"):
+# --- MÓDULO 4: MANUTENÇÃO DE MOTOS ---
+elif escolha == "Manutenção de Motos":
+    st.title("Gestão e Auditoria de Manutenções")
+    
+    # Abas para organizar a tela de manutenção
+    aba_auditoria, aba_regras = st.tabs(["📹 Auditoria de Vídeos (Óleo/Filtro)", "⚙️ Configurar Vida Útil (Regras)"])
+    
+    with aba_auditoria:
+        st.subheader("Histórico de Manutenções Realizadas")
+        st.write("Abaixo estão os registros e comprovações enviadas pelos clientes.")
+        
+        # Simulação de um registro de manutenção enviado
+        with st.expander("Manutenção Recente: Douglas Brandão (CG 160 - ABC-1234) - Data: Hoje"):
+            st.write("**Tipo de Serviço:** Troca de Óleo e Filtro de Óleo")
+            
             col1, col2 = st.columns(2)
-            placa = col1.text_input("Placa")
-            modelo = col2.text_input("Modelo e Ano")
-            km_inicial = st.number_input("Quilometragem Inicial", min_value=0, step=1)
+            with col1:
+                st.write("**Foto do Hodômetro (KM):**")
+                # Simulando uma foto
+                st.image("https://via.placeholder.com/300x200.png?text=Foto+do+Painel+(1000+km)", use_column_width=True)
             
-            if st.form_submit_button("Cadastrar Moto"):
-                st.success("Moto adicionada à frota e disponível para locação.")
-
-    with aba_fornecedores:
-        st.subheader("Oficinas Parceiras")
-        st.info("Utilize a busca ou cadastre digitando um novo nome no campo ao lado.")
-        
-        oficinas_existentes = ["Moto Peças Central", "Borracharia Express", "Speed Motos"]
-        
-        col1, col2 = st.columns(2)
-        busca_oficina = col1.selectbox("Buscar Oficina (Autocompletar)", [""] + oficinas_existentes)
-        nova_oficina = col2.text_input("Ou digite uma Nova Oficina")
-        
-        oficina_final = nova_oficina if nova_oficina else busca_oficina
-        
-        especialidade = st.multiselect("Serviços Realizados", ["Óleo", "Pneus", "Relação/Corrente", "Freios"])
-        
-        if st.button("Registrar Oficina"):
-            st.success(f"Oficina '{oficina_final}' autorizada no sistema!")
+            with col2:
+                st.write("**Vídeo da Troca (Óleo e Filtro):**")
+                # Simulando o vídeo
+                st.video("https://www.w3schools.com/html/mov_bbb.mp4")
+            
+            st.button("Aprovar Manutenção", key="aprovar_douglas")
 
     with aba_regras:
-        st.subheader("Vida Útil das Peças (Em KM)")
-        with st.form("form_regras"):
-            st.write("Altere os valores padrão se necessário:")
-            st.number_input("Troca de Óleo", value=1000)
-            st.number_input("Filtro de Óleo", value=2000)
-            st.number_input("Troca de Pneu", value=12000)
-            st.number_input("Corrente/Relação", value=15000)
-            st.number_input("Pastilha de Freio", value=5000)
+        st.subheader("Configuração de Vida Útil Estimada")
+        st.write("Defina a quilometragem padrão para a troca de cada item. Essa regra alimentará a barra de progresso no aplicativo do locatário.")
+        
+        with st.form("form_vida_util"):
+            col1, col2 = st.columns(2)
+            regra_oleo = col1.number_input("Troca de Óleo (KM)", value=1000)
+            regra_filtro = col2.number_input("Filtro de Óleo (KM)", value=1000)
             
-            if st.form_submit_button("Salvar Regras da Frota"):
-                st.success("As barras de progresso do aplicativo dos locatários foram atualizadas.")
+            col3, col4 = st.columns(2)
+            regra_freio = col3.number_input("Pastilha de Freio (KM)", value=5000)
+            regra_pneu = col4.number_input("Pneu (KM)", value=10000)
+            
+            col5, col6 = st.columns(2)
+            regra_embreagem = col5.number_input("Cabo de Embreagem (KM)", value=12000)
+            regra_corrente = col6.number_input("Corrente/Relação (KM)", value=15000)
+            
+            if st.form_submit_button("Salvar Regras de Quilometragem"):
+                st.success("Regras atualizadas! O aplicativo dos locatários já refletirá as novas metas.")
