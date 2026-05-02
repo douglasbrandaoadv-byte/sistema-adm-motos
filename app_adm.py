@@ -1,109 +1,157 @@
 import streamlit as st
 
-st.set_page_config(page_title="Painel ADM - Locadora", layout="wide")
-st.title("Painel Administrativo da Locadora")
+# 1. Configuração da página e Identidade Visual
+# DEVE ser a primeira linha do código
+st.set_page_config(page_title="Sistema de Gestão e Locação", layout="wide")
 
-menu = ["Dashboard", "Inadimplência e Bloqueio", "Galeria de Validação (Vídeos)", "Cadastro"]
-escolha = st.sidebar.selectbox("Menu de Navegação", menu)
+# Aplicando a identidade visual (Azul Marinho e Branco) na barra lateral
+st.markdown("""
+    <style>
+    [data-testid="stSidebar"] {
+        background-color: #000080;
+    }
+    [data-testid="stSidebar"] * {
+        color: white !important;
+    }
+    div[data-baseweb="radio"] > div {
+        margin-bottom: 10px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-import streamlit as st
+# 2. O Menu Único e Fixo na Barra Lateral
+st.sidebar.title("Menu Principal")
 
-st.set_page_config(page_title="Painel ADM - Locadora", layout="wide")
-st.title("Administração - Gestão de Frota e Clientes")
+opcoes_menu = [
+    "Dashboard",
+    "Gerar Intinerário", 
+    "Despesa em Lote", 
+    "Motos: Inadimplência e Bloqueio",
+    "Motos: Validação de Vídeos",
+    "Motos: Cadastros"
+]
 
-# Menu Lateral
-menu = ["Inadimplência", "Validação de Manutenção", "Cadastros do Sistema"]
-escolha = st.sidebar.selectbox("Navegação", menu)
+# O comando st.radio cria a lista fixa, eliminando o menu suspenso
+escolha = st.sidebar.radio("Selecione o módulo:", opcoes_menu)
 
-if escolha == "Cadastros do Sistema":
-    st.header("Módulo de Cadastros")
+st.divider() # Linha visual para separar o topo
+
+# 3. Roteamento das Telas (A lógica de cada menu)
+
+if escolha == "Dashboard":
+    st.title("Dashboard Principal")
+    st.write("Aqui ficarão os gráficos e o resumo financeiro geral do seu negócio.")
+    # Cole aqui a lógica original do seu Dashboard, se houver
+
+elif escolha == "Gerar Intinerário":
+    st.title("Gerar Intinerário")
+    st.write("Módulo de organização de rotas e intinerários da equipe.")
+    # Cole aqui a lógica original do seu Intinerário
+
+elif escolha == "Despesa em Lote":
+    st.title("Lançamento de Despesa em Lote")
     
-    # Criando abas para organizar a tela
+    # Campo com digitação manual e autocompletar para não engessar a operação
+    fornecedores_salvos = ["Fornecedor A", "Distribuidora Central", "Serviços Gerais Ltda"]
+    
+    col1, col2 = st.columns(2)
+    busca_forn = col1.selectbox("Buscar fornecedor (Autocompletar)", [""] + fornecedores_salvos)
+    novo_forn = col2.text_input("Ou digite manualmente um novo fornecedor")
+    
+    fornecedor_final = novo_forn if novo_forn else busca_forn
+    
+    valor = st.number_input("Valor Total (R$)", min_value=0.0)
+    
+    if st.button("Lançar Despesa"):
+        st.success(f"Despesa de R$ {valor} para o fornecedor '{fornecedor_final}' registrada com sucesso!")
+        # Cole aqui o restante da sua lógica original de Despesa em Lote
+
+elif escolha == "Motos: Inadimplência e Bloqueio":
+    st.title("Controle de Pagamentos Semanais")
+    
+    # Simulação de painel de alerta
+    st.error("Atenção: Locatário João Silva (Placa ABC-1234) está com pagamento atrasado.")
+    
+    if st.button("Acionar Bloqueio da Moto (ABC-1234)"):
+        st.success("Sinal de bloqueio de ignição enviado ao rastreador com sucesso!")
+
+elif escolha == "Motos: Validação de Vídeos":
+    st.title("Auditoria de Manutenção (Óleo e Filtro)")
+    
+    st.write("**Vídeo enviado por:** João Silva (Placa ABC-1234)")
+    st.write("**Data do envio:** Hoje")
+    
+    # Exemplo visual de onde o vídeo do locatário aparecerá
+    st.video("https://www.w3schools.com/html/mov_bbb.mp4") 
+    
+    col1, col2 = st.columns(2)
+    if col1.button("✅ Aprovar Manutenção"):
+        st.success("Manutenção aprovada. O relógio de quilometragem da peça foi zerado.")
+    
+    if col2.button("❌ Reprovar (Exigir novo vídeo)"):
+        st.error("Notificação enviada ao locatário. Ele deverá enviar um novo vídeo demonstrando a troca.")
+
+elif escolha == "Motos: Cadastros":
+    st.title("Gestão de Frota e Clientes")
+    
+    # As abas organizam a tela sem precisar criar novos menus laterais
     aba_clientes, aba_motos, aba_fornecedores, aba_regras = st.tabs([
-        "👤 Locatários", "🏍️ Frota", "🛠️ Oficinas Parceiras", "⚙️ Regras de Manutenção"
+        "👤 Locatários", "🏍️ Frota", "🛠️ Oficinas", "⚙️ Regras"
     ])
     
-    # --- ABA 1: LOCATÁRIOS ---
     with aba_clientes:
-        st.subheader("Novo Locatário")
+        st.subheader("Cadastro de Locatário")
         with st.form("form_cliente"):
             col1, col2 = st.columns(2)
             nome = col1.text_input("Nome Completo")
-            cpf = col2.text_input("CPF (Apenas números)")
+            cpf = col2.text_input("CPF")
             
             col3, col4 = st.columns(2)
             cnh = col3.text_input("Número da CNH")
             validade_cnh = col4.date_input("Validade da CNH")
             
-            modalidade = st.selectbox("Modalidade do Contrato", ["Com Repasse (Transferência)", "Sem Repasse (Devolução)"])
+            modalidade = st.selectbox("Modalidade", ["Com Repasse (Transferência)", "Sem Repasse (Devolução)"])
             
-            # Botão de salvar
-            salvar_cliente = st.form_submit_button("Salvar Locatário")
-            if salvar_cliente:
-                st.success(f"Locatário {nome} cadastrado com sucesso!")
-                # Aqui o sistema enviará os dados para o Supabase (Banco de Dados)
+            if st.form_submit_button("Salvar Locatário"):
+                st.success("Locatário cadastrado e pronto para assinatura do contrato.")
 
-    # --- ABA 2: MOTOS ---
     with aba_motos:
-        st.subheader("Nova Moto na Frota")
+        st.subheader("Cadastro de Motocicleta")
         with st.form("form_moto"):
             col1, col2 = st.columns(2)
-            placa = col1.text_input("Placa (ex: ABC-1234)")
-            modelo = col2.text_input("Modelo e Ano (ex: CG 160 Titan 2024)")
-            
+            placa = col1.text_input("Placa")
+            modelo = col2.text_input("Modelo e Ano")
             km_inicial = st.number_input("Quilometragem Inicial", min_value=0, step=1)
             
-            salvar_moto = st.form_submit_button("Cadastrar Moto")
-            if salvar_moto:
-                st.success(f"Moto placa {placa} cadastrada com sucesso!")
+            if st.form_submit_button("Cadastrar Moto"):
+                st.success("Moto adicionada à frota e disponível para locação.")
 
-    # --- ABA 3: OFICINAS PARCEIRAS (Com Autocompletar) ---
     with aba_fornecedores:
-        st.subheader("Gestão de Fornecedores e Oficinas")
+        st.subheader("Oficinas Parceiras")
+        st.info("Utilize a busca ou cadastre digitando um novo nome no campo ao lado.")
         
-        # Simulando uma lista de oficinas que já estão no banco de dados
-        oficinas_existentes = ["Moto Peças Central", "Oficina do João", "Borracharia Express", "Speed Motos"]
+        oficinas_existentes = ["Moto Peças Central", "Borracharia Express", "Speed Motos"]
         
-        st.write("Digite o nome da oficina para buscar (autocompletar) ou cadastre uma nova.")
-        
-        # O text_input normal engessa, então usamos um selectbox que permite digitar e autocompletar,
-        # ou deixamos o usuário digitar um nome totalmente novo.
         col1, col2 = st.columns(2)
-        oficina_busca = col1.selectbox("Buscar Oficina Cadastrada", [""] + oficinas_existentes)
-        novo_fornecedor = col2.text_input("Ou digite manualmente uma Nova Oficina")
+        busca_oficina = col1.selectbox("Buscar Oficina (Autocompletar)", [""] + oficinas_existentes)
+        nova_oficina = col2.text_input("Ou digite uma Nova Oficina")
         
-        especialidade = st.multiselect("Tipos de Serviço", ["Troca de Óleo", "Pneus", "Relação/Corrente", "Freios"])
+        oficina_final = nova_oficina if nova_oficina else busca_oficina
+        
+        especialidade = st.multiselect("Serviços Realizados", ["Óleo", "Pneus", "Relação/Corrente", "Freios"])
         
         if st.button("Registrar Oficina"):
-            nome_final = novo_fornecedor if novo_fornecedor else oficina_busca
-            st.success(f"Fornecedor '{nome_final}' salvo com as especialidades selecionadas!")
+            st.success(f"Oficina '{oficina_final}' autorizada no sistema!")
 
-    # --- ABA 4: REGRAS DE MANUTENÇÃO ---
     with aba_regras:
-        st.subheader("Configurar Vida Útil das Peças (Em KM)")
-        st.info("Esses números alimentarão a barra de progresso no aplicativo do locatário.")
+        st.subheader("Vida Útil das Peças (Em KM)")
         with st.form("form_regras"):
-            oleo = st.number_input("Troca de Óleo (km)", value=1000)
-            filtro = st.number_input("Filtro de Óleo (km)", value=2000)
-            pneu = st.number_input("Troca de Pneu (km)", value=12000)
-            relacao = st.number_input("Troca de Corrente/Relação (km)", value=15000)
+            st.write("Altere os valores padrão se necessário:")
+            st.number_input("Troca de Óleo", value=1000)
+            st.number_input("Filtro de Óleo", value=2000)
+            st.number_input("Troca de Pneu", value=12000)
+            st.number_input("Corrente/Relação", value=15000)
+            st.number_input("Pastilha de Freio", value=5000)
             
-            salvar_regras = st.form_submit_button("Atualizar Regras")
-            if salvar_regras:
-                st.success("Regras de quilometragem atualizadas para toda a frota!")
-
-if escolha == "Inadimplência e Bloqueio":
-    st.subheader("Controle de Pagamentos Semanais")
-    st.warning("Atenção: João Silva (Placa ABC-1234) está com pagamento atrasado.")
-    
-    if st.button("Acionar Bloqueio da Moto (ABC-1234)"):
-        st.error("Sinal de bloqueio enviado ao rastreador com sucesso!")
-
-elif escolha == "Galeria de Validação (Vídeos)":
-    st.subheader("Auditoria de Troca de Óleo e Filtro")
-    st.write("Vídeo enviado por: João Silva (Placa ABC-1234)")
-    st.video("https://www.w3schools.com/html/mov_bbb.mp4") # Exemplo visual
-    
-    col1, col2 = st.columns(2)
-    col1.button("Aprovar Manutenção")
-    col2.button("Reprovar (Exigir novo vídeo)")
+            if st.form_submit_button("Salvar Regras da Frota"):
+                st.success("As barras de progresso do aplicativo dos locatários foram atualizadas.")
