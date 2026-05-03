@@ -14,7 +14,37 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. CONEXÃO COM A NUVEM (SUPABASE) ---
+# --- 2. TELA DE LOGIN ---
+if "logado" not in st.session_state:
+    st.session_state.logado = False
+
+# Se não estiver logado, exibe apenas a tela de login e para a execução do resto
+if not st.session_state.logado:
+    col1, col2, col3 = st.columns([1, 1, 1]) # Centraliza o formulário
+    with col2:
+        st.title("🔒 Acesso Restrito")
+        st.write("Insira suas credenciais para acessar a administração.")
+        
+        with st.form("form_login"):
+            usuario = st.text_input("Usuário")
+            senha = st.text_input("Senha", type="password")
+            entrar = st.form_submit_button("Entrar no Sistema")
+            
+            if entrar:
+                if usuario == "administrador" and senha == "adminmoto123":
+                    st.session_state.logado = True
+                    st.rerun() # Recarrega a página para entrar no sistema
+                else:
+                    st.error("Usuário ou senha incorretos.")
+    
+    # O st.stop() é o que garante que NADA abaixo desta linha seja executado sem login
+    st.stop()
+
+# =====================================================================
+# DAQUI PARA BAIXO, O SISTEMA SÓ RODA SE O LOGIN TIVER SIDO FEITO
+# =====================================================================
+
+# --- 3. CONEXÃO COM A NUVEM (SUPABASE) ---
 url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
@@ -45,7 +75,7 @@ db = carregar_dados_nuvem()
 if "motos" not in db: db["motos"] = {}
 if "clientes" not in db: db["clientes"] = {}
 
-# --- 3. MENU FIXO LATERAL ---
+# --- 4. MENU FIXO LATERAL ---
 st.sidebar.title("Menu Principal")
 escolha = st.sidebar.radio("Selecione o módulo:", [
     "Painel Inicial",
@@ -54,6 +84,12 @@ escolha = st.sidebar.radio("Selecione o módulo:", [
     "Relatório de Clientes", 
     "Relatório de Motos"
 ])
+
+st.sidebar.divider()
+if st.sidebar.button("🚪 Sair / Logout"):
+    st.session_state.logado = False
+    st.rerun()
+
 st.divider()
 
 # --- MÓDULO: PAINEL INICIAL (NOTIFICAÇÕES INTELIGENTES) ---
@@ -222,7 +258,7 @@ elif escolha == "Relatório de Clientes":
             cli = db["clientes"][cliente_selecionado]
             st.subheader(f"Ficha do Cliente: {cliente_selecionado}")
             
-            # 1. VISUALIZAÇÃO DOS DADOS (RESTAURADA)
+            # 1. VISUALIZAÇÃO DOS DADOS
             st.markdown("### 📋 Dados Pessoais e Contato")
             c1, c2, c3, c4 = st.columns(4)
             c1.write(f"**CPF:** {cli.get('cpf', '')}")
@@ -284,7 +320,7 @@ elif escolha == "Relatório de Clientes":
 
             st.divider()
 
-            # 3. GESTÃO DOS ARQUIVOS (RESTAURADA)
+            # 3. GESTÃO DOS ARQUIVOS
             st.subheader("Gerenciador de Documentos na Nuvem")
             col_doc1, col_doc2, col_doc3 = st.columns(3)
             
@@ -355,7 +391,7 @@ elif escolha == "Relatório de Motos":
             moto_dados = db["motos"][moto_selecionada]
             st.subheader(f"Ficha Técnica: {moto_selecionada}")
             
-            # 1. VISUALIZAÇÃO DOS DADOS (RESTAURADA)
+            # 1. VISUALIZAÇÃO DOS DADOS
             col_m1, col_m2, col_m3 = st.columns(3)
             col_m1.write(f"**Chassi:** {moto_dados.get('chassi', '')}")
             col_m1.write(f"**Renavam:** {moto_dados.get('renavam', '')}")
