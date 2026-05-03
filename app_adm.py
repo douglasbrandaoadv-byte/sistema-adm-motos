@@ -60,7 +60,6 @@ st.divider()
 if escolha == "Painel Inicial":
     st.title("Painel Administrativo")
     
-    # ALERTAS DE CNH
     st.subheader("🔔 Alertas de CNH")
     hoje = datetime.date.today()
     alerta_cnh = False
@@ -82,7 +81,6 @@ if escolha == "Painel Inicial":
     
     st.divider()
     
-    # ALERTAS DE MANUTENÇÃO
     st.subheader("🔧 Alertas de Manutenção (Por Quilometragem)")
     alerta_manu = False
     
@@ -99,7 +97,7 @@ if escolha == "Painel Inicial":
                 if km_atual >= km_proxima_troca:
                     st.error(f"🚨 **{chave_moto}:** Troca de **{item.upper()}** atingida! (Passou de {intervalo}km desde a última). KM Atual: {km_atual}.")
                     alerta_manu = True
-                elif (km_proxima_troca - km_atual) <= 200: # Aviso prévio de 200km
+                elif (km_proxima_troca - km_atual) <= 200: 
                     st.warning(f"⚠️ **{chave_moto}:** Troca de **{item.upper()}** próxima. Faltam apenas {km_proxima_troca - km_atual}km.")
                     alerta_manu = True
 
@@ -137,7 +135,7 @@ elif escolha == "Cadastro de Cliente":
         col10, col11 = st.columns(2)
         modalidade = col10.selectbox("Modalidade", ["Transferência", "Devolução"])
         
-        # LÓGICA DE MOTOS DISPONÍVEIS
+        # MOTOS DISPONÍVEIS
         motos_disponiveis = [m for m, d in db["motos"].items() if d.get("status", "") == "Disponível"]
         lista_motos = motos_disponiveis if len(motos_disponiveis) > 0 else ["Nenhuma moto disponível no momento"]
         moto_escolhida = col11.selectbox("Modelo da Moto", lista_motos)
@@ -211,31 +209,51 @@ elif escolha == "Cadastro de Moto":
             else:
                 st.error("Placa e Modelo são obrigatórios.")
 
-# --- MÓDULO: RELATÓRIO DE CLIENTES (COM EDIÇÃO) ---
+# --- MÓDULO: RELATÓRIO DE CLIENTES ---
 elif escolha == "Relatório de Clientes":
-    st.title("Relatório e Edição de Clientes")
+    st.title("Relatório Completo de Clientes")
     
     if len(db["clientes"]) == 0:
-        st.warning("Nenhum cliente cadastrado.")
+        st.warning("Nenhum cliente cadastrado no banco de dados.")
     else:
-        cliente_selecionado = st.selectbox("Selecione o Cliente", [""] + list(db["clientes"].keys()))
+        cliente_selecionado = st.selectbox("Selecione um Cliente", [""] + list(db["clientes"].keys()))
         
         if cliente_selecionado != "":
             cli = db["clientes"][cliente_selecionado]
-            st.write(f"**Moto Locada Atual:** {cli.get('moto', 'Nenhuma')}")
+            st.subheader(f"Ficha do Cliente: {cliente_selecionado}")
             
-            # BOTÃO DE EDIÇÃO DE INFORMAÇÕES DO CLIENTE
+            # 1. VISUALIZAÇÃO DOS DADOS (RESTAURADA)
+            st.markdown("### 📋 Dados Pessoais e Contato")
+            c1, c2, c3, c4 = st.columns(4)
+            c1.write(f"**CPF:** {cli.get('cpf', '')}")
+            c2.write(f"**RG:** {cli.get('rg', '')}")
+            c3.write(f"**Nascimento:** {cli.get('data_nasc', '')}")
+            c4.write(f"**Telefone:** {cli.get('telefone', '')}")
+            
+            c5, c6, c7 = st.columns(3)
+            c5.write(f"**E-mail:** {cli.get('email', '')}")
+            c6.write(f"**Emergência:** {cli.get('emergencia', '')}")
+            c7.write(f"**CNH:** {cli.get('cnh', '')} (Cat: {cli.get('categoria', '')}) - Validade: {cli.get('validade_cnh', '')}")
+            
+            st.markdown(f"**Endereço:** {cli.get('rua', '')}")
+            
+            st.markdown("### 🏍️ Contrato e Moto")
+            st.write(f"**Moto Vinculada:** {cli.get('moto', '')}")
+            st.write(f"**Modalidade:** {cli.get('modalidade', '')}")
+            st.write(f"**Financeiro:** R$ {cli.get('valor', '')}/semana | **Prazo:** {cli.get('prazo', '')} meses | **Caução:** R$ {cli.get('caucao', '')}")
+            
+            st.divider()
+            
+            # 2. EDIÇÃO DOS DADOS DO CLIENTE
             with st.expander("✏️ Editar Informações do Cliente"):
                 with st.form("form_editar_cliente"):
-                    st.info("Altere os dados abaixo e clique em Salvar para atualizar o banco de dados.")
+                    st.info("Altere os dados abaixo e clique em Salvar.")
                     e_cpf = st.text_input("CPF", value=cli.get('cpf', ''))
                     e_rg = st.text_input("RG", value=cli.get('rg', ''))
                     e_tel = st.text_input("Telefone", value=cli.get('telefone', ''))
                     e_rua = st.text_input("Endereço", value=cli.get('rua', ''))
-                    
                     e_cnh = st.text_input("CNH", value=cli.get('cnh', ''))
                     
-                    # Logica complexa para exibir a moto atual + motos disponiveis no menu de edição
                     moto_atual = cli.get('moto')
                     motos_disp = [m for m, d in db["motos"].items() if d.get("status", "") == "Disponível"]
                     if moto_atual in db["motos"] and moto_atual not in motos_disp:
@@ -247,14 +265,12 @@ elif escolha == "Relatório de Clientes":
                     e_valor = st.number_input("Valor", value=float(cli.get('valor', 0.0)))
                     
                     if st.form_submit_button("Salvar Edição do Cliente"):
-                        # Se ele trocou de moto, libera a antiga e trava a nova
                         if e_moto != moto_atual:
                             if moto_atual in db["motos"]:
                                 db["motos"][moto_atual]["status"] = "Disponível"
                             if e_moto != "Nenhuma" and e_moto in db["motos"]:
                                 db["motos"][e_moto]["status"] = f"Locada para {cliente_selecionado}"
                         
-                        # Atualiza dados
                         db["clientes"][cliente_selecionado]["cpf"] = e_cpf
                         db["clientes"][cliente_selecionado]["rg"] = e_rg
                         db["clientes"][cliente_selecionado]["telefone"] = e_tel
@@ -263,24 +279,94 @@ elif escolha == "Relatório de Clientes":
                         db["clientes"][cliente_selecionado]["moto"] = e_moto
                         db["clientes"][cliente_selecionado]["valor"] = e_valor
                         salvar_dados_nuvem(db)
-                        st.success("Dados do cliente atualizados!")
+                        st.success("Dados atualizados!")
                         st.rerun()
 
-# --- MÓDULO: RELATÓRIO DE MOTOS (COM MANUTENÇÃO) ---
+            st.divider()
+
+            # 3. GESTÃO DOS ARQUIVOS (RESTAURADA)
+            st.subheader("Gerenciador de Documentos na Nuvem")
+            col_doc1, col_doc2, col_doc3 = st.columns(3)
+            
+            with col_doc1:
+                st.markdown("**1. CNH do Cliente**")
+                link_cnh = cli.get("link_cnh")
+                if link_cnh:
+                    st.markdown(f"[📥 Baixar/Ver CNH]({link_cnh})", unsafe_allow_html=True)
+                    nova_cnh = st.file_uploader("🔄 Substituir CNH", type=['pdf', 'jpg', 'png'], key="sub_cnh")
+                    if nova_cnh:
+                        with st.spinner("Substituindo..."):
+                            db["clientes"][cliente_selecionado]["link_cnh"] = salvar_arquivo_nuvem(nova_cnh, cliente_selecionado, "CNH")
+                            salvar_dados_nuvem(db)
+                        st.success("Substituída! Atualize a página.")
+                else:
+                    nova_cnh = st.file_uploader("📤 Inserir CNH", type=['pdf', 'jpg', 'png'], key="up_cnh")
+                    if nova_cnh:
+                        db["clientes"][cliente_selecionado]["link_cnh"] = salvar_arquivo_nuvem(nova_cnh, cliente_selecionado, "CNH")
+                        salvar_dados_nuvem(db)
+                        st.success("Salva! Atualize a página.")
+
+            with col_doc2:
+                st.markdown("**2. Comprov. Residência**")
+                link_res = cli.get("link_residencia")
+                if link_res:
+                    st.markdown(f"[📥 Baixar/Ver Comprovante]({link_res})", unsafe_allow_html=True)
+                    novo_res = st.file_uploader("🔄 Substituir Comprovante", type=['pdf', 'jpg', 'png'], key="sub_res")
+                    if novo_res:
+                        with st.spinner("Substituindo..."):
+                            db["clientes"][cliente_selecionado]["link_residencia"] = salvar_arquivo_nuvem(novo_res, cliente_selecionado, "Residencia")
+                            salvar_dados_nuvem(db)
+                        st.success("Substituído! Atualize a página.")
+                else:
+                    novo_res = st.file_uploader("📤 Inserir Comprovante", type=['pdf', 'jpg', 'png'], key="up_res")
+                    if novo_res:
+                        db["clientes"][cliente_selecionado]["link_residencia"] = salvar_arquivo_nuvem(novo_res, cliente_selecionado, "Residencia")
+                        salvar_dados_nuvem(db)
+                        st.success("Salvo! Atualize a página.")
+
+            with col_doc3:
+                st.markdown("**3. Minuta do Contrato**")
+                link_min = cli.get("link_minuta")
+                if link_min:
+                    st.markdown(f"[📥 Baixar/Ver Minuta]({link_min})", unsafe_allow_html=True)
+                    nova_minuta = st.file_uploader("🔄 Substituir Minuta", type=['pdf', 'doc', 'docx'], key="sub_min")
+                    if nova_minuta:
+                        with st.spinner("Substituindo..."):
+                            db["clientes"][cliente_selecionado]["link_minuta"] = salvar_arquivo_nuvem(nova_minuta, cliente_selecionado, "Minuta")
+                            salvar_dados_nuvem(db)
+                        st.success("Substituída! Atualize a página.")
+                else:
+                    nova_minuta = st.file_uploader("📤 Inserir Minuta", type=['pdf', 'doc', 'docx'], key="up_min")
+                    if nova_minuta:
+                        db["clientes"][cliente_selecionado]["link_minuta"] = salvar_arquivo_nuvem(nova_minuta, cliente_selecionado, "Minuta")
+                        salvar_dados_nuvem(db)
+                        st.success("Salva! Atualize a página.")
+
+# --- MÓDULO: RELATÓRIO DE MOTOS ---
 elif escolha == "Relatório de Motos":
-    st.title("Relatório, Edição e Manutenção de Motos")
+    st.title("Relatório Geral e Manutenção de Motos")
     
     if len(db["motos"]) == 0:
-        st.warning("Nenhuma moto cadastrada.")
+        st.warning("Nenhuma moto cadastrada no banco de dados.")
     else:
-        # Transformado em caixa de seleção para facilitar edição de uma por vez
         moto_selecionada = st.selectbox("Selecione a Moto", [""] + list(db["motos"].keys()))
         
         if moto_selecionada != "":
             moto_dados = db["motos"][moto_selecionada]
-            st.write(f"**Status:** {moto_dados.get('status', '')} | **KM Atual:** {moto_dados.get('km_atual', moto_dados.get('km_inicial', 0))}")
+            st.subheader(f"Ficha Técnica: {moto_selecionada}")
             
-            # ABA 1: EDIÇÃO DA MOTO
+            # 1. VISUALIZAÇÃO DOS DADOS (RESTAURADA)
+            col_m1, col_m2, col_m3 = st.columns(3)
+            col_m1.write(f"**Chassi:** {moto_dados.get('chassi', '')}")
+            col_m1.write(f"**Renavam:** {moto_dados.get('renavam', '')}")
+            col_m2.write(f"**Licenciamento (Ano):** {moto_dados.get('licenciamento', '')}")
+            col_m2.write(f"**KM Inicial:** {moto_dados.get('km_inicial', '')} km")
+            col_m3.write(f"**KM Atual:** {moto_dados.get('km_atual', moto_dados.get('km_inicial', 0))} km")
+            col_m3.write(f"**Status:** {moto_dados.get('status', '')}")
+            
+            st.divider()
+            
+            # 2. EDIÇÃO DOS DADOS DA MOTO
             with st.expander("✏️ Editar Informações da Moto"):
                 with st.form("form_editar_moto"):
                     em_chassi = st.text_input("Chassi", value=moto_dados.get('chassi', ''))
@@ -294,18 +380,16 @@ elif escolha == "Relatório de Motos":
                         db["motos"][moto_selecionada]["cor"] = em_cor
                         db["motos"][moto_selecionada]["licenciamento"] = em_licenca
                         salvar_dados_nuvem(db)
-                        st.success("Dados da moto atualizados!")
+                        st.success("Dados atualizados!")
                         st.rerun()
 
-            # ABA 2: REGRAS E REGISTROS DE MANUTENÇÃO
+            # 3. CONTROLE DE MANUTENÇÃO
             with st.expander("🔧 Cadastro de Quilometragem e Manutenções"):
-                st.info("Atualize a KM da moto informada pelo cliente, e ajuste as regras de intervalo fixo para gerar notificações automáticas.")
-                
+                st.info("Atualize o KM da moto e ajuste os intervalos fixos para gerar alertas no Painel Inicial.")
                 with st.form("form_manutencao"):
                     km_hoje = st.number_input("Atualizar KM ATUAL da Moto", value=int(moto_dados.get('km_atual', 0)), step=100)
                     st.divider()
                     
-                    # Puxa o dicionário de manutenção ou cria se for uma moto antiga do banco
                     manutencao_db = moto_dados.get("manutencao", {})
                     pecas = ["Óleo", "Filtro", "Pastilha", "Pneu", "Embreagem", "Corrente"]
                     
@@ -313,19 +397,16 @@ elif escolha == "Relatório de Motos":
                     for peca in pecas:
                         st.write(f"**{peca}**")
                         c1, c2 = st.columns(2)
-                        
-                        # Pegar valor atual no banco (ou 0 se não existir)
                         val_ultima = manutencao_db.get(peca, {}).get("ultima_troca", 0)
                         val_intervalo = manutencao_db.get(peca, {}).get("intervalo", 0)
                         
-                        # Inputs para edição
-                        nova_ultima = c1.number_input(f"KM da Última Troca ({peca})", value=int(val_ultima), key=f"ult_{peca}")
-                        novo_inter = c2.number_input(f"Intervalo Fixo/Regra ({peca})", value=int(val_intervalo), key=f"int_{peca}")
+                        nova_ultima = c1.number_input(f"KM Última Troca ({peca})", value=int(val_ultima), key=f"ult_{peca}")
+                        novo_inter = c2.number_input(f"Intervalo Fixo ({peca})", value=int(val_intervalo), key=f"int_{peca}")
                         novos_dados_manu[peca] = {"ultima_troca": nova_ultima, "intervalo": novo_inter}
                         
                     if st.form_submit_button("Salvar Regras de Manutenção"):
                         db["motos"][moto_selecionada]["km_atual"] = km_hoje
                         db["motos"][moto_selecionada]["manutencao"] = novos_dados_manu
                         salvar_dados_nuvem(db)
-                        st.success("KM e Regras salvas! O Painel Inicial gerará alertas com base nisso.")
+                        st.success("KM e Regras salvas com sucesso!")
                         st.rerun()
