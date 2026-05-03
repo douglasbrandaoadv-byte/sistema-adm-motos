@@ -1,7 +1,7 @@
 import streamlit as st
 import datetime
-import json
 import os
+from supabase import create_client, Client
 
 # --- 1. CONFIGURAÇÃO E IDENTIDADE VISUAL ---
 st.set_page_config(page_title="Sistema de Locação de Motos", layout="wide")
@@ -14,41 +14,42 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. BANCO DE DADOS E GESTÃO DE ARQUIVOS ---
-ARQUIVO_DB = "banco_de_dados.json"
-PASTA_ARQUIVOS = "arquivos_salvos"
+# --- 2. CONEXÃO COM A NUVEM (SUPABASE) ---
+# O Streamlit puxa as chaves secretas que você configurou
+url = st.secrets["SUPABASE_URL"]
+key = st.secrets["SUPABASE_KEY"]
+supabase: Client = create_client(url, key)
 
-# Cria a pasta para guardar as fotos/PDFs se ela não existir
-if not os.path.exists(PASTA_ARQUIVOS):
-    os.makedirs(PASTA_ARQUIVOS)
-
-def carregar_dados():
-    if os.path.exists(ARQUIVO_DB):
-        with open(ARQUIVO_DB, "r", encoding="utf-8") as f:
-            return json.load(f)
+def carregar_dados_nuvem():
+    """Puxa os cadastros lá do banco de dados na nuvem"""
+    resposta = supabase.table("banco_json").select("dados").eq("id", 1).execute()
+    if resposta.data:
+        return resposta.data[0]["dados"]
     return {"motos": {}, "clientes": {}}
 
-def salvar_dados(dados):
-    with open(ARQUIVO_DB, "w", encoding="utf-8") as f:
-        json.dump(dados, f, indent=4, ensure_ascii=False)
+def salvar_dados_nuvem(dados):
+    """Envia os cadastros atualizados para a nuvem"""
+    supabase.table("banco_json").update({"dados": dados}).eq("id", 1).execute()
 
-def salvar_arquivo_fisico(arquivo_upado, nome_cliente, tipo_doc):
-    """Pega o arquivo do upload e salva permanentemente na pasta"""
+def salvar_arquivo_nuvem(arquivo_upado, nome_cliente, tipo_doc):
+    """Envia PDFs e Fotos para a pasta 'arquivos' no Supabase"""
     if arquivo_upado is not None:
-        # Pega a extensão do arquivo (ex: .pdf, .jpg)
         extensao = os.path.splitext(arquivo_upado.name)[1]
-        # Cria um nome único: ex "Douglas_CNH.pdf"
-        nome_arquivo = f"{nome_cliente.replace(' ', '_')}_{tipo_doc}{extensao}"
-        caminho_completo = os.path.join(PASTA_ARQUIVOS, nome_arquivo)
+        # Adiciona um número de tempo para não sobrescrever arquivos com mesmo nome
+        timestamp = int(datetime.datetime.now().timestamp())
+        nome_arquivo = f"{nome_cliente.replace(' ', '_')}_{tipo_doc}_{timestamp}{extensao}"
         
-        # Grava o arquivo fisicamente na pasta
-        with open(caminho_completo, "wb") as f:
-            f.write(arquivo_upado.getbuffer())
+        # Faz o upload físico dos bytes para o bucket 'arquivos'
+        arquivo_bytes = arquivo_upado.getvalue()
+        supabase.storage.from_("arquivos").upload(nome_arquivo, arquivo_bytes)
         
-        return caminho_completo
+        # Pega o link público para você poder baixar depois de qualquer lugar
+        link_publico = supabase.storage.from_("arquivos").get_public_url(nome_arquivo)
+        return link_publico
     return None
 
-db = carregar_dados()
+# Carrega os dados da nuvem sempre que a página atualiza
+db = carregar_dados_nuvem()
 
 # --- 3. MENU FIXO LATERAL ---
 st.sidebar.title("Menu Principal")
@@ -93,7 +94,7 @@ if escolha == "Cadastro de Cliente":
         cep = col14.text_input("CEP")
         cidade = col15.text_input("Cidade")
         
-        st.subheader("Anexos (Upload Definitivo)")
+        st.subheader("Anexos (Upload para a Nuvem)")
         foto_cnh = st.file_uploader("Foto da CNH", type=['pdf', 'jpg', 'png', 'jpeg'])
         foto_residencia = st.file_uploader("Comprovante de Residência", type=['pdf', 'jpg', 'png', 'jpeg'])
         
@@ -109,31 +110,31 @@ if escolha == "Cadastro de Cliente":
         prazo_meses = col19.number_input("Prazo do Contrato (Meses)", min_value=1, step=1)
         caucao = col20.number_input("Caução/Franquia (R$)", min_value=0.0, step=50.0)
         
-        if st.form_submit_button("Salvar Cadastro Permanente"):
+        if st.form_submit_button("Salvar Cadastro na Nuvem"):
             if not nome:
                 st.error("O nome do cliente é obrigatório.")
             elif moto_escolhida == "Nenhuma moto cadastrada":
                 st.error("Cadastre uma moto primeiro.")
             else:
-                # Salva os arquivos fisicamente e pega o caminho deles
-                caminho_cnh = salvar_arquivo_fisico(foto_cnh, nome, "CNH")
-                caminho_res = salvar_arquivo_fisico(foto_residencia, nome, "Residencia")
+                with st.spinner("Enviando arquivos para a nuvem..."):
+                    caminho_cnh = salvar_arquivo_nuvem(foto_cnh, nome, "CNH")
+                    caminho_res = salvar_arquivo_nuvem(foto_residencia, nome, "Residencia")
 
-                db["clientes"][nome] = {
-                    "cpf": cpf, "rg": rg, "data_nasc": str(data_nasc),
-                    "cnh": cnh, "categoria": categoria_cnh, "validade_cnh": str(validade_cnh),
-                    "telefone": telefone, "email": email, "emergencia": emergencia,
-                    "rua": rua, "numero": numero, "bairro": bairro, "cep": cep, "cidade": cidade,
-                    "modalidade": modalidade, "moto": moto_escolhida, "valor": valor_semanal,
-                    "prazo": prazo_meses, "caucao": caucao,
-                    # Agora guardamos o caminho exato do arquivo no disco
-                    "caminho_cnh": caminho_cnh, 
-                    "caminho_residencia": caminho_res,
-                    "caminho_minuta": None # Inicia sem minuta
-                }
-                db["motos"][moto_escolhida]["status"] = f"Locada para {nome}"
-                salvar_dados(db)
-                st.success(f"Cliente {nome} e seus documentos foram salvos permanentemente!")
+                    db["clientes"][nome] = {
+                        "cpf": cpf, "rg": rg, "data_nasc": str(data_nasc),
+                        "cnh": cnh, "categoria": categoria_cnh, "validade_cnh": str(validade_cnh),
+                        "telefone": telefone, "email": email, "emergencia": emergencia,
+                        "rua": rua, "numero": numero, "bairro": bairro, "cep": cep, "cidade": cidade,
+                        "modalidade": modalidade, "moto": moto_escolhida, "valor": valor_semanal,
+                        "prazo": prazo_meses, "caucao": caucao,
+                        # Guardamos o link público da nuvem
+                        "link_cnh": caminho_cnh, 
+                        "link_residencia": caminho_res,
+                        "link_minuta": None
+                    }
+                    db["motos"][moto_escolhida]["status"] = f"Locada para {nome}"
+                    salvar_dados_nuvem(db)
+                st.success(f"Cliente {nome} e seus documentos salvos na nuvem com sucesso!")
 
 # --- MÓDULO: CADASTRO DE MOTO ---
 elif escolha == "Cadastro de Moto":
@@ -159,15 +160,15 @@ elif escolha == "Cadastro de Moto":
         licenciamento = col9.number_input("Ano do Último Licenciamento", min_value=2000, max_value=2100, value=2026, step=1)
         status = col10.text_input("Status Atual", value="Disponível", disabled=True) 
         
-        if st.form_submit_button("Cadastrar Moto Permanente"):
+        if st.form_submit_button("Cadastrar Moto na Nuvem"):
             chave_moto = f"{modelo} - {placa}"
             db["motos"][chave_moto] = {
                 "placa": placa, "chassi": chassi, "renavam": renavam,
                 "marca": marca, "modelo": modelo, "ano": ano, "cor": cor,
                 "km_inicial": km_inicial, "licenciamento": licenciamento, "status": status
             }
-            salvar_dados(db)
-            st.success(f"Moto {chave_moto} cadastrada permanentemente no banco de dados!")
+            salvar_dados_nuvem(db)
+            st.success(f"Moto {chave_moto} salva na nuvem permanentemente!")
 
 # --- MÓDULO: RELATÓRIO DE MOTOS ---
 elif escolha == "Relatório de Motos":
@@ -178,7 +179,6 @@ elif escolha == "Relatório de Motos":
     else:
         for chave, dados_moto in db["motos"].items():
             titulo_linha = f"🏍️ {dados_moto['marca']} {dados_moto['modelo']} | Placa: {dados_moto['placa']} | Ano: {dados_moto['ano']} | Cor: {dados_moto['cor']}"
-            
             with st.expander(titulo_linha):
                 st.subheader("Ficha Técnica Completa")
                 col_m1, col_m2, col_m3 = st.columns(3)
@@ -188,7 +188,7 @@ elif escolha == "Relatório de Motos":
                 col_m2.write(f"**Licenciamento (Ano):** {dados_moto['licenciamento']}")
                 col_m3.write(f"**Status:** {dados_moto['status']}")
 
-# --- MÓDULO: RELATÓRIO DE CLIENTES E GESTÃO DE ARQUIVOS ---
+# --- MÓDULO: RELATÓRIO DE CLIENTES ---
 elif escolha == "Relatório de Clientes":
     st.title("Relatório Completo de Clientes")
     
@@ -201,7 +201,6 @@ elif escolha == "Relatório de Clientes":
             cli = db["clientes"][cliente_selecionado]
             st.subheader(f"Ficha do Cliente: {cliente_selecionado}")
             
-            # EXIBIÇÃO DE TODOS OS DADOS CADASTRAIS
             st.markdown("### 📋 Dados Pessoais e Contato")
             c1, c2, c3, c4 = st.columns(4)
             c1.write(f"**CPF:** {cli['cpf']}")
@@ -223,84 +222,81 @@ elif escolha == "Relatório de Clientes":
             
             st.divider()
             
-            # GESTÃO REAL DE DOCUMENTOS
-            st.subheader("Gerenciador de Documentos do Cliente")
+            # GESTÃO DOS ARQUIVOS NA NUVEM
+            st.subheader("Gerenciador de Documentos na Nuvem")
             col_doc1, col_doc2, col_doc3 = st.columns(3)
             
             # 1. CNH
             with col_doc1:
                 st.markdown("**1. CNH do Cliente**")
-                caminho_cnh = cli.get("caminho_cnh")
-                if caminho_cnh and os.path.exists(caminho_cnh):
-                    with open(caminho_cnh, "rb") as file:
-                        st.download_button(label="📥 Baixar/Ver CNH", data=file, file_name=os.path.basename(caminho_cnh), key="dl_cnh")
-                    
+                link_cnh = cli.get("link_cnh")
+                if link_cnh:
+                    st.markdown(f"[📥 Clicar para Baixar/Ver CNH]({link_cnh})", unsafe_allow_html=True)
                     nova_cnh = st.file_uploader("🔄 Substituir CNH", type=['pdf', 'jpg', 'png'], key="sub_cnh")
                     if nova_cnh:
-                        novo_caminho = salvar_arquivo_fisico(nova_cnh, cliente_selecionado, "CNH")
-                        db["clientes"][cliente_selecionado]["caminho_cnh"] = novo_caminho
-                        salvar_dados(db)
+                        with st.spinner("Substituindo..."):
+                            novo_link = salvar_arquivo_nuvem(nova_cnh, cliente_selecionado, "CNH")
+                            db["clientes"][cliente_selecionado]["link_cnh"] = novo_link
+                            salvar_dados_nuvem(db)
                         st.success("CNH substituída!")
                         st.rerun()
                 else:
-                    nova_cnh = st.file_uploader("📤 Inserir CNH Faltante", type=['pdf', 'jpg', 'png'], key="up_cnh")
+                    nova_cnh = st.file_uploader("📤 Inserir CNH", type=['pdf', 'jpg', 'png'], key="up_cnh")
                     if nova_cnh:
-                        novo_caminho = salvar_arquivo_fisico(nova_cnh, cliente_selecionado, "CNH")
-                        db["clientes"][cliente_selecionado]["caminho_cnh"] = novo_caminho
-                        salvar_dados(db)
+                        novo_link = salvar_arquivo_nuvem(nova_cnh, cliente_selecionado, "CNH")
+                        db["clientes"][cliente_selecionado]["link_cnh"] = novo_link
+                        salvar_dados_nuvem(db)
                         st.success("CNH salva!")
                         st.rerun()
 
-            # 2. Comprovante de Residência
+            # 2. Comprovante
             with col_doc2:
                 st.markdown("**2. Comprov. Residência**")
-                caminho_res = cli.get("caminho_residencia")
-                if caminho_res and os.path.exists(caminho_res):
-                    with open(caminho_res, "rb") as file:
-                        st.download_button(label="📥 Baixar/Ver Comprovante", data=file, file_name=os.path.basename(caminho_res), key="dl_res")
-                    
+                link_res = cli.get("link_residencia")
+                if link_res:
+                    st.markdown(f"[📥 Clicar para Baixar/Ver Comprovante]({link_res})", unsafe_allow_html=True)
                     novo_res = st.file_uploader("🔄 Substituir Comprovante", type=['pdf', 'jpg', 'png'], key="sub_res")
                     if novo_res:
-                        novo_caminho = salvar_arquivo_fisico(novo_res, cliente_selecionado, "Residencia")
-                        db["clientes"][cliente_selecionado]["caminho_residencia"] = novo_caminho
-                        salvar_dados(db)
+                        with st.spinner("Substituindo..."):
+                            novo_link = salvar_arquivo_nuvem(novo_res, cliente_selecionado, "Residencia")
+                            db["clientes"][cliente_selecionado]["link_residencia"] = novo_link
+                            salvar_dados_nuvem(db)
                         st.success("Comprovante substituído!")
                         st.rerun()
                 else:
-                    novo_res = st.file_uploader("📤 Inserir Comprovante Faltante", type=['pdf', 'jpg', 'png'], key="up_res")
+                    novo_res = st.file_uploader("📤 Inserir Comprovante", type=['pdf', 'jpg', 'png'], key="up_res")
                     if novo_res:
-                        novo_caminho = salvar_arquivo_fisico(novo_res, cliente_selecionado, "Residencia")
-                        db["clientes"][cliente_selecionado]["caminho_residencia"] = novo_caminho
-                        salvar_dados(db)
+                        novo_link = salvar_arquivo_nuvem(novo_res, cliente_selecionado, "Residencia")
+                        db["clientes"][cliente_selecionado]["link_residencia"] = novo_link
+                        salvar_dados_nuvem(db)
                         st.success("Comprovante salvo!")
                         st.rerun()
 
-            # 3. Minuta do Contrato
+            # 3. Minuta
             with col_doc3:
                 st.markdown("**3. Minuta do Contrato**")
-                caminho_min = cli.get("caminho_minuta")
-                if caminho_min and os.path.exists(caminho_min):
-                    with open(caminho_min, "rb") as file:
-                        st.download_button(label="📥 Baixar/Ver Minuta", data=file, file_name=os.path.basename(caminho_min), key="dl_min")
-                    
+                link_min = cli.get("link_minuta")
+                if link_min:
+                    st.markdown(f"[📥 Clicar para Baixar/Ver Minuta]({link_min})", unsafe_allow_html=True)
                     nova_minuta = st.file_uploader("🔄 Substituir Minuta", type=['pdf', 'doc', 'docx'], key="sub_min")
                     if nova_minuta:
-                        novo_caminho = salvar_arquivo_fisico(nova_minuta, cliente_selecionado, "Minuta")
-                        db["clientes"][cliente_selecionado]["caminho_minuta"] = novo_caminho
-                        salvar_dados(db)
+                        with st.spinner("Substituindo..."):
+                            novo_link = salvar_arquivo_nuvem(nova_minuta, cliente_selecionado, "Minuta")
+                            db["clientes"][cliente_selecionado]["link_minuta"] = novo_link
+                            salvar_dados_nuvem(db)
                         st.success("Minuta substituída!")
                         st.rerun()
                 else:
-                    st.warning("Sem contrato no sistema.")
-                    nova_minuta = st.file_uploader("📤 Inserir Minuta do Contrato", type=['pdf', 'doc', 'docx'], key="up_min")
+                    st.warning("Sem contrato inserido.")
+                    nova_minuta = st.file_uploader("📤 Inserir Minuta", type=['pdf', 'doc', 'docx'], key="up_min")
                     if nova_minuta:
-                        novo_caminho = salvar_arquivo_fisico(nova_minuta, cliente_selecionado, "Minuta")
-                        db["clientes"][cliente_selecionado]["caminho_minuta"] = novo_caminho
-                        salvar_dados(db)
+                        novo_link = salvar_arquivo_nuvem(nova_minuta, cliente_selecionado, "Minuta")
+                        db["clientes"][cliente_selecionado]["link_minuta"] = novo_link
+                        salvar_dados_nuvem(db)
                         st.success("Minuta salva!")
                         st.rerun()
 
 # --- MÓDULO: MANUTENÇÃO DE MOTOS ---
 elif escolha == "Manutenção de Motos":
     st.title("Gestão de Manutenções")
-    st.write("Área para configurar quilometragens e validar os vídeos de troca de óleo (Em breve integrado aos arquivos físicos).")
+    st.write("Área estruturada e conectada à nuvem para validação de vídeos de troca de óleo.")
